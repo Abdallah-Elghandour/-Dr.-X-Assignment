@@ -1,5 +1,7 @@
 import os
 from document_reader import DocumentReader
+from publication_chunker import PublicationChunker
+
 
 def main():
     """
@@ -32,17 +34,19 @@ def main():
     for file_name in files:
         file_path = os.path.join(publications_dir, file_name)
         extension = file_name.split('.')[-1].lower()
-        
+
         if extension in reader.supported_extensions:
             print(f"\nProcessing: {file_name}")
             try:
-                result = reader.read_document(file_path)
-                
-                # Print some information about the extracted content
-                print(f"Source: {result['source']}")
-                print(f"Extension: {result['extension']}")
-                print(f"Total pages: {len(result['pages'])}")
-                
+                chunker = PublicationChunker()
+                chunks = chunker.chunk_publication(file_path)
+
+                # Print some info about the first chunk
+                if chunks:
+                    print(f"Source: {chunks[0]['source']}")
+                    print(f"Page: {chunks[0]['page_number']}")
+                    print(f"Text sample: {chunks[0]['text'][:100]}...")
+                    print("---")
                 
             except Exception as e:
                 print(f"Error processing {file_name}: {str(e)}")
