@@ -43,10 +43,6 @@ def main():
                 print(f"Extension: {result['extension']}")
                 print(f"Total pages: {len(result['pages'])}")
                 
-                # Print a preview of the content
-                preview_length = 200
-                preview = result['text'][:preview_length] + "..." if len(result['text']) > preview_length else result['text']
-                print(f"Content preview: {preview}")
                 
             except Exception as e:
                 print(f"Error processing {file_name}: {str(e)}")

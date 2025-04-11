@@ -4,7 +4,7 @@ import docx
 import PyPDF2
 import csv
 from typing import Dict, List, Union, Tuple
-
+from docx2pdf import convert
 
 class DocumentReader:
     """
@@ -38,9 +38,34 @@ class DocumentReader:
 
         result = self.supported_extensions[extension](file_path)
         result['source'] = file_name
-        result['extension'] = extension
         return result
     
+    def _read_pdf(self, file_path: str) -> Dict[str, Union[str, List[str]]]:
+            """
+            Extract text from a PDF file.
+            
+            Args:
+                file_path: Path to the PDF file
+                
+            Returns:
+                Dictionary with extracted Pages
+            """
+            with open(file_path, 'rb') as file:
+                reader = PyPDF2.PdfReader(file)
+                pages = []
+                
+                for page_num in range(len(reader.pages)):
+                    page = reader.pages[page_num]
+                    page_text = page.extract_text()
+                    
+                    # Add page number for reference
+                    if page_text:
+                        pages.append(f"{page_text}")
+
+                return {
+                    'pages': pages,
+                }
+
     def _read_docx(self, file_path: str) -> Dict[str, Union[str, List[str]]]:
         """
         Extract text from a DOCX file.
@@ -49,52 +74,28 @@ class DocumentReader:
             file_path: Path to the DOCX file
             
         Returns:
-            Dictionary with extracted text and metadata
+            Dictionary with extracted Pages
         """
-        doc = docx.Document(file_path)
-        full_text = []
+        # Step 1: Convert DOCX to PDF
+        pdf_path = file_path.replace(".docx", ".pdf")
         
-        # Extract text from paragraphs
-        for para in doc.paragraphs:
-            if para.text.strip():
-                full_text.append(para.text.strip())
+        # Convert only if not already converted
+        if not os.path.exists(pdf_path):
+            convert(file_path, pdf_path)
 
-        for table in doc.tables:
-            full_text.append("TABLE CONTENT:")
-            for row in table.rows:
-                row_data = [cell.text.strip() for cell in row.cells]
-                full_text.append(" | ".join(row_data))    
-        # Join all text with double newlines for readability
-        text = '\n\n'.join(full_text)
-        return {
-            'text': text,
-            'pages': [text]  # DOCX doesn't have page info by default
-        }
-    
-    def _read_pdf(self, file_path: str) -> Dict[str, Union[str, List[str]]]:
-        """
-        Extract text from a PDF file.
-        
-        Args:
-            file_path: Path to the PDF file
-            
-        Returns:
-            Dictionary with extracted text and metadata
-        """
-        with open(file_path, 'rb') as file:
-            reader = PyPDF2.PdfReader(file)
-            pages = []
-            
-            for page_num in range(len(reader.pages)):
-                page = reader.pages[page_num]
-                pages.append(page.extract_text())
-            
-            full_text = '\n\n'.join(pages)
+        try:
+            pdf = self._read_pdf(pdf_path)
+
             return {
-                'text': full_text,
-                'pages': pages
+                'pages': pdf['pages']
             }
-    
+        finally:
+            # Clean up
+            if os.path.exists(pdf_path):
+                os.remove(pdf_path)
+
+
+
     def _read_tabular(self, file_path: str) -> Dict[str, Union[str, List[str]]]:
         """
         Extract text from tabular files (CSV, XLSX, XLS, XLSM).
@@ -106,60 +107,62 @@ class DocumentReader:
             Dictionary with extracted text and metadata
         """
         extension = file_path.split('.')[-1].lower()
-        
         if extension == 'csv':
             # Read CSV file
             with open(file_path, 'r', encoding='utf-8') as file:
                 reader = csv.reader(file)
                 data = list(reader)
+                
+                # Create pages for CSV (each page contains ~100 rows)
+                rows_per_page = 100
+                pages = []
+                
+                for i in range(0, len(data), rows_per_page):
+                    page_data = data[i:i+rows_per_page]
+                    page_text = ["TABLE CONTENT (Page {}):".format(len(pages) + 1)]
+                    
+                    for row in page_data:
+                        row_text = [str(cell).strip() for cell in row if str(cell).strip()]
+                        if row_text:  # Only add non-empty rows
+                            page_text.append(" | ".join(row_text))
+                    
+                    pages.append("\n".join(page_text))
+                
+                # If no pages were created, create at least one
+                if not pages:
+                    pages = ["No data found"]
+                
+                text = "\n\n".join(pages)
         else:
             # Read Excel files
             try:
-                data = []
-                excel_file = pd.ExcelFile(file_path)
+                pages = []
                 
+                excel_file = pd.ExcelFile(file_path, engine='openpyxl')
+                
+                # Treat each sheet as a separate "page"
                 for sheet_name in excel_file.sheet_names:
                     df = pd.read_excel(file_path, sheet_name=sheet_name)
-                    data.append(f"Sheet: {sheet_name}")
+                    page_text = [f"Sheet: {sheet_name}"]
                     
                     # Convert DataFrame to text representation
                     rows = [df.columns.tolist()] + df.values.tolist()
                     for row in rows:
-                        data.append(" | ".join([str(cell) for cell in row]))
+                        row_text = " | ".join([str(cell) for cell in row])
+                        page_text.append(row_text)
                     
-                    data.append("")  # Add space between sheets
+                    pages.append("\n".join(page_text))
+               
+                
+                # If no pages were created, create at least one
+                if not pages:
+                    pages = ["No data found"]
+                text = "\n\n".join(pages)
             except Exception as e:
-                return {
-                    'text': f"Error reading Excel file: {str(e)}",
-                    'pages': [f"Error reading Excel file: {str(e)}"]
-                }
-        
-        # Convert data to text
-        if isinstance(data[0], list):  # For CSV data
-            text_data = ["TABLE CONTENT:"]  # Add header
-            for row in data:
-                row_text = [str(cell).strip() for cell in row if str(cell).strip()]
-                if row_text:  # Only add non-empty rows
-                    text_data.append(" | ".join(row_text))
-            text = "\n".join(text_data)
-        else:  # For Excel data already processed
-            text = "\n".join(data)
+                print(f"Excel reading error: {str(e)}")
         
         return {
-            'text': text,
-            'pages': [text]  # Tabular files don't have pages by default
+            'pages': pages
         }
 
 
-def extract_text_from_file(file_path: str) -> Dict[str, Union[str, List[str]]]:
-    """
-    Wrapper function to extract text from a file using DocumentReader.
-    
-    Args:
-        file_path: Path to the document file
-        
-    Returns:
-        Dictionary with extracted text and metadata
-    """
-    reader = DocumentReader()
-    return reader.read_document(file_path)
