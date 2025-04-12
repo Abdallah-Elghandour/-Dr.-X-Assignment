@@ -1,7 +1,7 @@
 import os
 from document_reader import DocumentReader
 from publication_chunker import PublicationChunker
-
+from vector_db import VectorDB  # Add this import
 
 def main():
     """
@@ -30,6 +30,9 @@ def main():
     
     print(f"Found {len(files)} files in {publications_dir} directory.")
     
+    # Initialize VectorDB
+    vector_db = VectorDB()
+    
     # Process each file
     for file_name in files:
         file_path = os.path.join(publications_dir, file_name)
@@ -40,7 +43,11 @@ def main():
             try:
                 chunker = PublicationChunker()
                 chunks = chunker.chunk_publication(file_path)
-
+                
+                # Add chunks to vector database
+                vector_db.add_to_db(chunks)
+                print(f"Added {len(chunks)} chunks to vector database")
+                
                 # Print some info about the first chunk
                 if chunks:
                     print(f"Source: {chunks[0]['source']}")
@@ -52,6 +59,8 @@ def main():
                 print(f"Error processing {file_name}: {str(e)}")
         else:
             print(f"Skipping unsupported file: {file_name}")
+    
+    print(f"\nTotal chunks in vector database: {vector_db.get_db_size()}")
 
 if __name__ == "__main__":
     main()
