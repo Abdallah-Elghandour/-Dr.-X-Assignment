@@ -1,7 +1,8 @@
 import os
 from document_reader import DocumentReader
 from publication_chunker import PublicationChunker
-from vector_db import VectorDB  # Add this import
+from vector_db import VectorDB 
+
 
 def main():
     """

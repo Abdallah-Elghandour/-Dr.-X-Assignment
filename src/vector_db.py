@@ -1,48 +1,65 @@
-from sentence_transformers import SentenceTransformer
+import faiss
 import numpy as np
+from sentence_transformers import SentenceTransformer
 from typing import List, Dict
-import json
 import os
+import pickle
 
 class VectorDB:
-    def __init__(self, db_path: str = "vector_db.json"):
+    def __init__(self, db_path: str = "vector_db.faiss"):
         self.db_path = db_path
-        self.db = self._load_db()
+        self.metadata_path = db_path.replace('.faiss', '.meta')
         self.model = SentenceTransformer("nomic-ai/nomic-embed-text-v2-moe", trust_remote_code=True)
+        self.index = None
+        self.metadata = []
+        self._load_db()
         
-    def _load_db(self) -> List[Dict]:
-        """Load existing database or create new one"""
+    def _load_db(self):
+        """Load existing FAISS index and metadata or create new ones"""
         if os.path.exists(self.db_path):
-            with open(self.db_path, 'r') as f:
-                return json.load(f)
-        return []
+            self.index = faiss.read_index(self.db_path)
+            with open(self.metadata_path, 'rb') as f:
+                self.metadata = pickle.load(f)
+        else:
+            # Initialize empty index - dimension will be set when first embedding is added
+            self.index = None
+            self.metadata = []
     
     def _save_db(self):
-        """Save database to file"""
-        with open(self.db_path, 'w') as f:
-            json.dump(self.db, f)
-    
-    def generate_embeddings(self, chunks: List[Dict]) -> List[np.ndarray]:
+        """Save FAISS index and metadata to files"""
+        if self.index is not None:
+            faiss.write_index(self.index, self.db_path)
+            with open(self.metadata_path, 'wb') as f:
+                pickle.dump(self.metadata, f)
+
+    def generate_embeddings(self, chunks: List[Dict]) -> np.ndarray:
         """Generate embeddings for text chunks using Nomic model"""
         texts = [chunk['text'] for chunk in chunks]
-        embeddings = self.model.encode(texts)
-        return embeddings
+        return self.model.encode(texts)
     
     def add_to_db(self, chunks: List[Dict]):
         """Add chunks with their embeddings to the database"""
         embeddings = self.generate_embeddings(chunks)
-
-        for chunk, embedding in zip(chunks, embeddings):
-            self.db.append({
+        
+        if self.index is None:
+            # Initialize index with correct dimension
+            dimension = embeddings.shape[1]
+            self.index = faiss.IndexFlatL2(dimension)
+        
+        # Add embeddings to FAISS index
+        self.index.add(embeddings)
+        
+        # Store metadata
+        for chunk in chunks:
+            self.metadata.append({
                 'source': chunk['source'],
                 'page_number': chunk['page_number'],
                 'chunk_number': chunk['chunk_number'],
-                'text': chunk['text'],
-                'embedding': embedding.tolist()  # Convert numpy array to list
+                'text': chunk['text']
             })
         
         self._save_db()
     
     def get_db_size(self) -> int:
         """Get number of entries in the database"""
-        return len(self.db)
+        return self.index.ntotal if self.index is not None else 0
