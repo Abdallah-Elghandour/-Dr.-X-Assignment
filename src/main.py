@@ -2,6 +2,7 @@ import os
 from document_reader import DocumentReader
 from publication_chunker import PublicationChunker
 from vector_db import VectorDB 
+from rag_qa import RAGQA
 
 
 def main():
@@ -62,6 +63,26 @@ def main():
             print(f"Skipping unsupported file: {file_name}")
     
     print(f"\nTotal chunks in vector database: {vector_db.get_db_size()}")
+
+    # Initialize RAG QA system
+    rag = RAGQA(vector_db)
+
+    # Interactive Q&A session
+    print("\n=== Interactive Q&A Session ===")
+    print("Type 'exit' to end the session.")
+    
+    while True:
+        question = input("\nYour question: ")
+        
+        if question.lower() == 'exit':
+            print("Exiting Q&A session. Goodbye!")
+            break
+        
+        # Process the question and get answer
+        answer = rag.answer_question(question)
+        print("\nAnswer:", answer)
+        print("\n" + "-"*50)
+
 
 if __name__ == "__main__":
     main()
