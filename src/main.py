@@ -3,11 +3,11 @@ from document_reader import DocumentReader
 from publication_chunker import PublicationChunker
 from vector_db import VectorDB 
 from rag_qa import RAGQA
-
+from publication_translator import PublicationTranslator
 
 def main():
     """
-    Main function to demonstrate the document reader functionality.
+    Main function to demonstrate document processing functionality.
     """
     # Initialize the document reader
     reader = DocumentReader()
@@ -50,13 +50,6 @@ def main():
                 vector_db.add_to_db(chunks)
                 print(f"Added {len(chunks)} chunks to vector database")
                 
-                # Print some info about the first chunk
-                if chunks:
-                    print(f"Source: {chunks[0]['source']}")
-                    print(f"Page: {chunks[0]['page_number']}")
-                    print(f"Text sample: {chunks[0]['text'][:100]}...")
-                    print("---")
-                
             except Exception as e:
                 print(f"Error processing {file_name}: {str(e)}")
         else:
@@ -64,25 +57,66 @@ def main():
     
     print(f"\nTotal chunks in vector database: {vector_db.get_db_size()}")
 
-    # Initialize RAG QA system
-    rag = RAGQA(vector_db)
+    # Mode selection
+    print("\n=== Select Mode ===")
+    print("1. Question & Answer")
+    print("2. Document Translation")
+    choice = input("Enter your choice (1 or 2): ").strip()
 
-    # Interactive Q&A session
-    print("\n=== Interactive Q&A Session ===")
-    print("Type 'exit' to end the session.")
+    if choice == '1':
+        # Initialize RAG QA system
+        rag = RAGQA(vector_db)
+
+        # Interactive Q&A session
+        print("\n=== Interactive Q&A Session ===")
+        print("Type 'exit' to end the session.")
+        
+        while True:
+            question = input("\nYour question: ")
+            
+            if question.lower() == 'exit':
+                print("Exiting Q&A session. Goodbye!")
+                break
+            
+            # Process the question and get answer
+            answer = rag.answer_question(question)
+            print("\nAnswer:", answer)
+            print("\n" + "-"*50)
     
-    while True:
-        question = input("\nYour question: ")
+    elif choice == '2':
+        # Initialize translator
+        translator = PublicationTranslator()
         
-        if question.lower() == 'exit':
-            print("Exiting Q&A session. Goodbye!")
-            break
+        # Select file to translate
+        print("\nAvailable files:")
+        for i, file_name in enumerate(files):
+            print(f"{i+1}. {file_name}")
         
-        # Process the question and get answer
-        answer = rag.answer_question(question)
-        print("\nAnswer:", answer)
-        print("\n" + "-"*50)
-
+        file_choice = input("\nSelect file to translate (enter number): ").strip()
+        try:
+            selected_index = int(file_choice) - 1
+            if 0 <= selected_index < len(files):
+                selected_file = files[selected_index]
+                file_path = os.path.join(publications_dir, selected_file)
+                
+                # Select target language
+                print("\nTarget languages:")
+                print("1. English")
+                print("2. Arabic")
+                lang_choice = input("Select target language (1 or 2): ").strip()
+                target_lang = "english" if lang_choice == '1' else "arabic"
+                
+                # Translate and save
+                translated = translator.translate_document(file_path, target_lang)
+                output_path = os.path.join("translations", f"translated_{selected_file}.txt")
+                saved_path = translator.save_translated_document(translated, output_path)
+                print(f"\nTranslation saved to: {saved_path}")
+            else:
+                print("Invalid file selection.")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+    else:
+        print("Invalid choice. Exiting.")
 
 if __name__ == "__main__":
     main()
