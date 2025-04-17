@@ -1,34 +1,48 @@
 import os
 from openai import OpenAI
 from typing import Dict, List, Union, Optional
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+import torch
 from document_reader import DocumentReader
+from docx import Document
 
 class PublicationTranslator:
     """
-    A class to translate publications from any language to English or Arabic
-    using DeepSeek's translation capabilities while preserving document structure.
+    A class to translate publications from any language to English or Arabic.
     """
-    
-    def __init__(self, api_key: Optional[str] = None, base_url: str = "https://api.deepseek.com"):
+        
+    def __init__(self, model_name: str = "meta-llama/Llama-3.1-8B-Instruct"):
         """
-        Initialize the PublicationTranslator.
+        Initialize the PublicationTranslator using Llama model.
         
         Args:
-            api_key: DeepSeek API key. If None, will try to use the DEEPSEEK_API_KEY environment variable.
-            base_url: DeepSeek API base URL.
+            model_name: Name or path of the Llama model to use.
         """
-        if api_key:
-            self.api_key = api_key
-        elif os.environ.get("DEEPSEEK_API_KEY"):
-            self.api_key = os.environ.get("DEEPSEEK_API_KEY")
-        else:
-            raise ValueError("DeepSeek API key must be provided either as an argument or as an environment variable.")
-        
-        self.base_url = base_url
-        self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        quantization_config = BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.bfloat16,
+            bnb_4bit_quant_type="nf4",
+            bnb_4bit_use_double_quant=True,
+        )
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            quantization_config=quantization_config,
+            device_map={"": 0},
+        )
         self.document_reader = DocumentReader()
         self.supported_target_languages = ["english", "arabic"]
     
+    def chunk_text_by_tokens(self, text, max_tokens=1024):
+        """Split text into chunks based on token count."""
+        tokens = self.tokenizer.encode(text)
+        chunks = []
+        for i in range(0, len(tokens), max_tokens):
+            chunk_tokens = tokens[i:i + max_tokens]
+            chunk_text = self.tokenizer.decode(chunk_tokens, skip_special_tokens=True)
+            chunks.append(chunk_text)
+        return chunks
+
     def translate_document(self, file_path: str, target_language: str = "english") -> Dict[str, Union[str, List[str]]]:
         """
         Translate a document to the target language while preserving structure.
@@ -47,48 +61,38 @@ class PublicationTranslator:
         # Read the document
         document_content = self.document_reader.read_document(file_path)
         
-        # Translate each page
-        translated_pages = []
-        for i, page in enumerate(document_content['pages']):
-            print(f"Translating page {i+1}/{len(document_content['pages'])}...")
-            translated_page = self._translate_text(page, target_language)
-            translated_pages.append(translated_page)
+        # Concatenate all pages into one string for chunking
+        full_text = " ".join(document_content['pages'])
+        chunks = self.chunk_text_by_tokens(full_text)
+        translated_chunks = []
+        for j, chunk in enumerate(chunks):
+            print(f"Translating chunk {j+1}/{len(chunks)}...")
+            translated_chunk = self._translate_text(chunk, target_language)
+            translated_chunks.append(translated_chunk)
+        # Optionally, you can split translated_chunks back into pages if needed
+        translated_pages = " ".join(translated_chunks)
         
         # Create result dictionary
         result = {
-            'source': document_content['source'],
             'pages': translated_pages,
-            'target_language': target_language
+
         }
         
         return result
     
     def _translate_text(self, text: str, target_language: str) -> str:
         """
-        Translate text using DeepSeek API while preserving structure and formatting.
+        Translate text using Llama model while preserving structure and formatting.
         """
-        system_prompt = f"""
-        You are a professional translator. Translate the following text to {target_language}.
-        Important guidelines:
-        1. Preserve all original formatting, including paragraphs, bullet points, and tables
-        2. Maintain the original document structure
-        3. Keep technical terms accurate
-        4. For tables, preserve the tabular format using the same delimiters
-        5. Do not add or remove information
-        6. Translate all content, including headers and footnotes
-        """
-        
+        prompt = (
+            f"do not add extra content and do not add any Notes, Translate the following text to {target_language.capitalize()}\n"
+            f"{text}\nTranslation:"
+        )
         try:
-            response = self.client.chat.completions.create(
-                model="deepseek-chat",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": text}
-                ],
-                temperature=0.3,
-                stream=False
-            )
-            return response.choices[0].message.content.strip()
+            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+            outputs = self.model.generate(**inputs, max_new_tokens=1024)
+            translation = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+            return translation.split("Translation:")[-1].strip()
         except Exception as e:
             print(f"Translation error: {str(e)}")
             return f"[Translation Error: {str(e)}]"
@@ -96,7 +100,7 @@ class PublicationTranslator:
     
     def save_translated_document(self, translated_content: Dict[str, Union[str, List[str]]], output_path: str) -> str:
         """
-        Save the translated content to a text file.
+        Save the translated content to a docx file.
         
         Args:
             translated_content: Dictionary with translated content
@@ -105,17 +109,14 @@ class PublicationTranslator:
         Returns:
             Path to the saved file
         """
-        # Create directory if it doesn't exist
+        # Ensure the output path has .docx extension
+        if not output_path.lower().endswith('.docx'):
+            output_path = os.path.splitext(output_path)[0] + '.docx'
+
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
-        with open(output_path, 'w', encoding='utf-8') as file:
-            file.write(f"Source: {translated_content['source']}\n")
-            file.write(f"Target Language: {translated_content['target_language']}\n")
-            file.write("\n" + "="*50 + "\n\n")
-            
-            for i, page in enumerate(translated_content['pages']):
-                file.write(f"Page {i+1}:\n\n")
-                file.write(page)
-                file.write("\n\n" + "-"*50 + "\n\n")
-        
+        doc = Document()  
+        doc.add_paragraph(translated_content['pages'])
+        doc.save(output_path)
+
         return output_path
