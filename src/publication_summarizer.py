@@ -1,11 +1,11 @@
 import os
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from rouge import Rouge
 from document_reader import DocumentReader
 from docx import Document
 from typing import Dict, List, Union, Tuple
 from publication_chunker import PublicationChunker
+from llm_manager import LLMManager
 
 
 class PublicationSummarizer:
@@ -14,35 +14,14 @@ class PublicationSummarizer:
     the quality of summaries using ROUGE metrics.
     """
     
-    def __init__(self, model_name: str = "meta-llama/Llama-3.1-8B-Instruct"):
+    def __init__(self):
         """
         Initialize the PublicationSummarizer with a local Llama model.
-        
-        Args:
-            model_name: Name or path of the Llama model
         """
-        self.model_name = model_name
         self.rouge = Rouge()
         
-        # Load model and tokenizer if GPU is available
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        print(f"Using device: {self.device}")
-        
         try:
-            # Use the same 4-bit quantization config as in PublicationTranslator
-            quantization_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.bfloat16,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_use_double_quant=True,
-            )
-            
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_name,
-                quantization_config=quantization_config,
-                device_map={"": 0},
-            )
+            self.llm_manager = LLMManager()
             self.model_loaded = True
         except Exception as e:
             print(f"Error loading model: {str(e)}")
@@ -128,19 +107,10 @@ class PublicationSummarizer:
         if not self.model_loaded:
             raise RuntimeError("No model loaded. Cannot generate summary.")
             
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
-        
-        with torch.no_grad():
-            outputs = self.model.generate(
-                inputs["input_ids"],
-                max_new_tokens=500,
-                temperature=0.7,
-                top_p=0.9,
-                do_sample=True
-            )
-        
-        summary = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return summary[len(prompt):].strip()
+        return self.llm_manager.generate_response(prompt, 
+                                                max_new_tokens=500,
+                                                temperature=0.7,
+                                                top_p=0.9)
 
     def evaluate_summary(self, reference_summary: str, generated_summary: str) -> Dict:
         """

@@ -1,49 +1,21 @@
 import os
-from openai import OpenAI
 from typing import Dict, List, Union, Optional
-from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-import torch
-from document_reader import DocumentReader
 from docx import Document
 from publication_chunker import PublicationChunker
+from llm_manager import LLMManager
 
 class PublicationTranslator:
     """
     A class to translate publications from any language to English or Arabic.
     """
         
-    def __init__(self, model_name: str = "meta-llama/Llama-3.1-8B-Instruct"):
+    def __init__(self):
         """
         Initialize the PublicationTranslator using Llama model.
-        
-        Args:
-            model_name: Name or path of the Llama model to use.
         """
-        quantization_config = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.bfloat16,
-            bnb_4bit_quant_type="nf4",
-            bnb_4bit_use_double_quant=True,
-        )
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            quantization_config=quantization_config,
-            device_map={"": 0},
-        )
-        # self.document_reader = DocumentReader()
+        self.llm_manager = LLMManager()
         self.supported_target_languages = ["english", "arabic"]
     
-    # def chunk_text_by_tokens(self, text, max_tokens=1024):
-    #     """Split text into chunks based on token count."""
-    #     tokens = self.tokenizer.encode(text)
-    #     chunks = []
-    #     for i in range(0, len(tokens), max_tokens):
-    #         chunk_tokens = tokens[i:i + max_tokens]
-    #         chunk_text = self.tokenizer.decode(chunk_tokens, skip_special_tokens=True)
-    #         chunks.append(chunk_text)
-    #     return chunks
-
     def translate_document(self, file_path: str, target_language: str = "english") -> str:
         """
         Translate a document to the target language while preserving structure.
@@ -70,8 +42,6 @@ class PublicationTranslator:
         # Optionally, you can split translated_chunks back into pages if needed
         translated_pages = " ".join(translated_chunks)
         
-    
-
         
         return translated_pages
     
@@ -80,14 +50,14 @@ class PublicationTranslator:
         Translate text using Llama model while preserving structure and formatting.
         """
         prompt = (
-            f"do not add extra content and do not add any Notes, Translate the following text to {target_language.capitalize()}\n"
+            f"Translate the following text to {target_language.capitalize()}\n"
             f"{text}\nTranslation:"
         )
         try:
-            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
-            outputs = self.model.generate(**inputs, max_new_tokens=1024)
-            translation = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            return translation.split("Translation:")[-1].strip()
+            return self.llm_manager.generate_response(prompt, 
+                                                    max_new_tokens=1024,
+                                                    temperature=0.3,
+                                                    top_p=0.9)
         except Exception as e:
             print(f"Translation error: {str(e)}")
             return f"[Translation Error: {str(e)}]"
