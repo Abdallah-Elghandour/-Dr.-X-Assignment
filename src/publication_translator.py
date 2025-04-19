@@ -5,6 +5,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 import torch
 from document_reader import DocumentReader
 from docx import Document
+from publication_chunker import PublicationChunker
 
 class PublicationTranslator:
     """
@@ -30,20 +31,20 @@ class PublicationTranslator:
             quantization_config=quantization_config,
             device_map={"": 0},
         )
-        self.document_reader = DocumentReader()
+        # self.document_reader = DocumentReader()
         self.supported_target_languages = ["english", "arabic"]
     
-    def chunk_text_by_tokens(self, text, max_tokens=1024):
-        """Split text into chunks based on token count."""
-        tokens = self.tokenizer.encode(text)
-        chunks = []
-        for i in range(0, len(tokens), max_tokens):
-            chunk_tokens = tokens[i:i + max_tokens]
-            chunk_text = self.tokenizer.decode(chunk_tokens, skip_special_tokens=True)
-            chunks.append(chunk_text)
-        return chunks
+    # def chunk_text_by_tokens(self, text, max_tokens=1024):
+    #     """Split text into chunks based on token count."""
+    #     tokens = self.tokenizer.encode(text)
+    #     chunks = []
+    #     for i in range(0, len(tokens), max_tokens):
+    #         chunk_tokens = tokens[i:i + max_tokens]
+    #         chunk_text = self.tokenizer.decode(chunk_tokens, skip_special_tokens=True)
+    #         chunks.append(chunk_text)
+    #     return chunks
 
-    def translate_document(self, file_path: str, target_language: str = "english") -> Dict[str, Union[str, List[str]]]:
+    def translate_document(self, file_path: str, target_language: str = "english") -> str:
         """
         Translate a document to the target language while preserving structure.
         
@@ -57,14 +58,11 @@ class PublicationTranslator:
         target_language = target_language.lower()
         if target_language not in self.supported_target_languages:
             raise ValueError(f"Unsupported target language: {target_language}. Supported languages: {', '.join(self.supported_target_languages)}")
-        
-        # Read the document
-        document_content = self.document_reader.read_document(file_path)
-        
-        # Concatenate all pages into one string for chunking
-        full_text = " ".join(document_content['pages'])
-        chunks = self.chunk_text_by_tokens(full_text)
+
+        chunker = PublicationChunker()                            
+        chunks = chunker.chunk_text(file_path, max_tokens=1024)
         translated_chunks = []
+
         for j, chunk in enumerate(chunks):
             print(f"Translating chunk {j+1}/{len(chunks)}...")
             translated_chunk = self._translate_text(chunk, target_language)
@@ -72,13 +70,10 @@ class PublicationTranslator:
         # Optionally, you can split translated_chunks back into pages if needed
         translated_pages = " ".join(translated_chunks)
         
-        # Create result dictionary
-        result = {
-            'pages': translated_pages,
+    
 
-        }
         
-        return result
+        return translated_pages
     
     def _translate_text(self, text: str, target_language: str) -> str:
         """
@@ -98,7 +93,7 @@ class PublicationTranslator:
             return f"[Translation Error: {str(e)}]"
     
     
-    def save_translated_document(self, translated_content: Dict[str, Union[str, List[str]]], output_path: str) -> str:
+    def save_translated_document(self, translated_content: str, output_path: str) -> str:
         """
         Save the translated content to a docx file.
         
@@ -111,12 +106,12 @@ class PublicationTranslator:
         """
         # Ensure the output path has .docx extension
         if not output_path.lower().endswith('.docx'):
-            output_path = os.path.splitext(output_path)[0] + '.docx'
+            output_path = os.path.splitext(output_path)[0]
 
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
         doc = Document()  
-        doc.add_paragraph(translated_content['pages'])
+        doc.add_paragraph(translated_content)
         doc.save(output_path)
 
         return output_path

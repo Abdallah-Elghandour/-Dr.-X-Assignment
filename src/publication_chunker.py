@@ -7,18 +7,12 @@ class PublicationChunker:
     A class to break down publications into smaller, manageable chunks using tokenization.
     """
     
-    def __init__(self, max_tokens: int = 500):
-        """
-        Initialize the PublicationChunker with a maximum token limit per chunk.
-        
-        Args:
-            max_tokens: Maximum number of tokens per chunk (default: 500)
-        """
+    def __init__(self):
+        """Initialize the PublicationChunker with a tokenizer."""
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
-        self.max_tokens = max_tokens
         self.document_reader = DocumentReader()
     
-    def chunk_publication(self, file_path: str) -> List[Dict[str, str]]:
+    def chunk_publication(self, file_path: str, max_tokens: int = 500) -> List[Dict[str, str]]:
         """
         Process a publication file and break it into chunks.
         
@@ -37,8 +31,8 @@ class PublicationChunker:
             tokens = self.tokenizer.encode(page_text)
             
             # Split tokens into chunks
-            for i in range(0, len(tokens), self.max_tokens):
-                chunk_tokens = tokens[i:i + self.max_tokens]
+            for i in range(0, len(tokens), max_tokens):
+                chunk_tokens = tokens[i:i + max_tokens]
                 chunk_text = self.tokenizer.decode(chunk_tokens)
                 
                 chunks.append({
@@ -49,4 +43,18 @@ class PublicationChunker:
                 })
                 chunk_counter += 1
                 
+        return chunks
+
+    def chunk_text(self, file_path: str, max_tokens: int = 1024)-> list[str]:
+        """Split text into chunks based on token count."""
+        document = self.document_reader.read_document(file_path)
+        full_text = " ".join(document['pages'])
+        tokens = self.tokenizer.encode(full_text)
+        chunks = []
+
+        for i in range(0, len(tokens), max_tokens):
+            chunk_tokens = tokens[i:i + max_tokens]
+            chunk_text = self.tokenizer.decode(chunk_tokens)
+            chunks.append(chunk_text)
+            
         return chunks

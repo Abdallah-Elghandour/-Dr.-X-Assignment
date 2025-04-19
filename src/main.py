@@ -110,7 +110,7 @@ def main():
                 
                 # Translate and save
                 translated = translator.translate_document(file_path, target_lang)
-                output_path = os.path.join("translations", f"translated_{selected_file}.txt")
+                output_path = os.path.join("translations", f"translated_{selected_file}")
                 saved_path = translator.save_translated_document(translated, output_path)
                 print(f"\nTranslation saved to: {saved_path}")
             else:
@@ -160,7 +160,7 @@ def main():
                         os.makedirs(summaries_dir)
                     
                     # Save summary
-                    output_path = os.path.join(summaries_dir, f"{technique}_summary_{selected_file}.txt")
+                    output_path = os.path.join(summaries_dir, f"{technique}_summary_{selected_file}")
                     saved_path = summarizer.save_summary(summary_result["summary"], output_path)
 
                     print(f"\nSummary saved to: {saved_path}")
