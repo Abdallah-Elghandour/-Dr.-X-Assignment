@@ -32,13 +32,18 @@ class LLMManager:
         
         # Load tokenizer and model
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        # Set pad_token_id to eos_token_id if not set
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
+            
         self.model = AutoModelForCausalLM.from_pretrained(
             model_name,
             device_map={"": 0},  
             quantization_config=self.quantization_config,
             low_cpu_mem_usage=True,
+            pad_token_id=self.tokenizer.pad_token_id
         )
-        
+
     def generate_response(self, 
                           prompt: str, 
                           max_new_tokens: int = 1024, 
@@ -47,32 +52,23 @@ class LLMManager:
                           do_sample: bool = True) -> str:
         """
         Generate a response from the model based on the prompt
-        
-        Args:
-            prompt: Input text prompt
-            max_new_tokens: Maximum number of tokens to generate
-            temperature: Sampling temperature (higher = more random)
-            top_p: Nucleus sampling parameter
-            do_sample: Whether to use sampling or greedy decoding
-            
-        Returns:
-            Generated text response
         """
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.device)
+        inputs = self.tokenizer(prompt, return_tensors="pt", padding=True).to(self.device)
         
         with torch.no_grad():
             outputs = self.model.generate(
                 inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
                 max_new_tokens=max_new_tokens,
                 temperature=temperature,
                 top_p=top_p,
-                do_sample=do_sample
+                do_sample=do_sample,
+                pad_token_id=self.tokenizer.pad_token_id
             )
         
         response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        # Return only the generated part, not including the prompt
         return response[len(self.tokenizer.decode(inputs["input_ids"][0], skip_special_tokens=True)):].strip()
-    
+
     def generate_chat_response(self, 
                               messages: List[Dict[str, str]], 
                               max_new_tokens: int = 1024,
@@ -102,7 +98,8 @@ class LLMManager:
             max_new_tokens=max_new_tokens,
             temperature=temperature,
             top_p=top_p,
-            do_sample=do_sample
+            do_sample=do_sample,
+            pad_token_id=self.tokenizer.pad_token_id
         )
         
         return self.tokenizer.decode(outputs[0][input_ids.shape[1]:], skip_special_tokens=True)

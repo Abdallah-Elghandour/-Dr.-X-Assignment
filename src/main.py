@@ -34,9 +34,6 @@ def main():
     
     print(f"Found {len(files)} files in {publications_dir} directory.")
     
-    # Initialize VectorDB
-    vector_db = VectorDB()
-    
     # Main program loop
     while True:
         # Mode selection
@@ -52,6 +49,9 @@ def main():
             break
 
         if choice == '1':
+            # Initialize VectorDB and RAG for each Q&A session
+            vector_db = VectorDB()
+            
             # Process files and add to vector database only for Q&A mode
             for file_name in files:
                 file_path = os.path.join(publications_dir, file_name)
@@ -86,14 +86,16 @@ def main():
                 
                 if question.lower() == 'exit':
                     print("Exiting Q&A session.")
+                    # Clean up resources
+                    del rag
+                    del vector_db
+                    gc.collect()
                     break
                 
                 # Process the question and get answer
                 answer = rag.answer_question(question)
                 print("\nAnswer:", answer)
                 print("\n" + "-"*50)
-                del rag, vector_db, chunker
-                gc.collect()
 
         elif choice == '2':
             # Initialize translator
