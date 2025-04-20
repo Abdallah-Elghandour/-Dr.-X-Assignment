@@ -1,4 +1,5 @@
 import os
+import gc 
 from document_reader import DocumentReader
 from publication_chunker import PublicationChunker
 from vector_db import VectorDB 
@@ -91,7 +92,9 @@ def main():
                 answer = rag.answer_question(question)
                 print("\nAnswer:", answer)
                 print("\n" + "-"*50)
-        
+                del rag, vector_db, chunker
+                gc.collect()
+
         elif choice == '2':
             # Initialize translator
             translator = PublicationTranslator()
@@ -130,6 +133,9 @@ def main():
                     print("Invalid file selection.")
             except ValueError:
                 print("Invalid input. Please enter a number.")
+            
+            del translator, translated
+            gc.collect()
         
         elif choice == '3':
             # Initialize summarizer
@@ -202,11 +208,15 @@ def main():
                     print("Invalid file selection.")
             except ValueError:
                 print("Invalid input. Please enter a number.")
+            
+            del summarizer, summary_result
+            gc.collect()
         else:
             print("Invalid choice. Please try again.")
             
         # Ask if user wants to continue with another task
         print("\n" + "="*50)
+
 
 if __name__ == "__main__":
     main()

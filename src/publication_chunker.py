@@ -58,3 +58,10 @@ class PublicationChunker:
             chunks.append(chunk_text)
             
         return chunks
+
+    def get_token_count(self, text: str) -> int:
+        """
+        Count the number of tokens in the given text using the model's tokenizer.
+        """
+        tokens = self.tokenizer.encode(text)
+        return len(tokens)

@@ -1,11 +1,13 @@
 import os
 import torch
+import time
 from rouge import Rouge
 from document_reader import DocumentReader
 from docx import Document
 from typing import Dict, List, Union, Tuple
 from publication_chunker import PublicationChunker
 from llm_manager import LLMManager
+from performance_metrics import PerformanceMetrics
 
 
 class PublicationSummarizer:
@@ -19,7 +21,8 @@ class PublicationSummarizer:
         Initialize the PublicationSummarizer with a local Llama model.
         """
         self.rouge = Rouge()
-        
+        self.performance_metrics = PerformanceMetrics()
+        self.chunker = PublicationChunker()
         try:
             self.llm_manager = LLMManager()
             self.model_loaded = True
@@ -48,50 +51,60 @@ class PublicationSummarizer:
         
         if technique not in techniques:
             raise ValueError(f"Unsupported summarization technique: {technique}")
+        
+        # Reset and start tracking performance
+        self.performance_metrics.reset()
+        self.performance_metrics.start_tracking()
             
-        chunker = PublicationChunker()
-        chunks = chunker.chunk_text(file_path, max_tokens=6000)
+        chunks = self.chunker.chunk_text(file_path, max_tokens=4000)
         summaries = []
         
         for chunk in chunks:
             prompt = techniques[technique](chunk)
+            start_time = time.time()
             chunk_summary = self._generate_summary(prompt)
+            processing_time = time.time() - start_time
+                 
+            token_count = self.chunker.get_token_count(chunk_summary)
+            self.performance_metrics.add_chunk_metrics(token_count, processing_time)
             summaries.append(chunk_summary)
+        
+        
+        self.performance_metrics.stop_tracking()
+        self.performance_metrics.print_summary()
         
         return {"summary": "\n\n".join(summaries)}
 
     def _get_extractive_prompt(self, text: str) -> str:
         return f"""
-        Extract the most important sentences from the following text to create a concise summary that retains the original wording.
-        Only include sentences that are essential to understanding the main points.
+        You are an Extractive Summarizer. Read the text below and select the most important sentences that summarize the main points. Copy the sentences exactly as they appear.
         
         TEXT:
         {text}
-
-        SUMMARY:
+        
+        Extractive Summary:
         """
 
     def _get_abstractive_prompt(self, text: str) -> str:
         return f"""
-        Summarize the following text in your own words. 
-        Rewrite it concisely while preserving the core message, important points, and overall tone. 
-        Avoid copying sentences directly from the text.
-        
+        You are an Abstractive Summarizer. Read the text below and summarize the following text in your own words. Focus on the main ideas. Do not copy the original sentences. Make it short, clear, and accurate.
+
         TEXT:
         {text}
 
-        SUMMARY:
+        Abstractive Summary:
         """
 
     def _get_hybrid_prompt(self, text: str) -> str:
         return f"""
-        Create a summary of the following text using a mix of extracted sentences and rephrased content. 
-        Focus on maintaining accuracy while improving clarity and flow. Prioritize key points and reduce redundancy.
-        
-        TEXT:
-        {text}
-        
-        SUMMARY:
+            You are a summarization expert skilled in both extractive and abstractive techniques.
+            The summary should be clear, concise, and capture all major points without losing the original meaning.
+
+
+            Text:
+            {text}
+
+            Hybrid Summary:
         """
 
     def _generate_summary(self, prompt: str) -> str:
@@ -109,7 +122,7 @@ class PublicationSummarizer:
             
         return self.llm_manager.generate_response(prompt, 
                                                 max_new_tokens=500,
-                                                temperature=0.7,
+                                                temperature=0.5,
                                                 top_p=0.9)
 
     def evaluate_summary(self, reference_summary: str, generated_summary: str) -> Dict:

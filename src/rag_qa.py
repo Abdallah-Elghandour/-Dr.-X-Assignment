@@ -4,6 +4,9 @@ from sentence_transformers import SentenceTransformer
 import torch
 from vector_db import VectorDB
 from llm_manager import LLMManager
+from performance_metrics import PerformanceMetrics
+from publication_chunker import PublicationChunker
+import time
 
 class RAGQA:
     def __init__(self, vector_db: VectorDB):
@@ -18,6 +21,10 @@ class RAGQA:
         # Initialize conversation history
         self.conversation_history = []
         self.max_history = 2  # Keep last 2 messages
+        
+        # Initialize performance metrics
+        self.performance_metrics = PerformanceMetrics()
+        self.chunker = PublicationChunker()
     
     def _get_relevant_chunks(self, question: str, top_k: int = 2) -> List[Dict]:
         """Retrieve top-k most relevant chunks from the database using FAISS"""
@@ -56,6 +63,10 @@ class RAGQA:
         # Add the current question with context
         messages.append({"role": "user", "content": f"Context: {context} \nQuestion: {question}"})
 
+        # Start tracking performance
+        self.performance_metrics.reset()
+        self.performance_metrics.start_tracking()
+
         # Use the LLM manager to generate the response
         answer = self.llm_manager.generate_chat_response(
                                                         messages,
@@ -64,6 +75,11 @@ class RAGQA:
                                                         top_p=0.9,
                                                         do_sample=True)
         
+        elapsed_time = time.time() - self.performance_metrics.metrics["start_time"]
+        token_count = self.chunker.get_token_count(answer)
+        self.performance_metrics.add_chunk_metrics(token_count, elapsed_time)
+        self.performance_metrics.stop_tracking()
+        
         # Update conversation history
         self.conversation_history.append({"role": "user", "content": question})
         self.conversation_history.append({"role": "assistant", "content": answer})
@@ -71,5 +87,8 @@ class RAGQA:
         # Keep only the last 2 messages (pairs of user/assistant)
         if len(self.conversation_history) > self.max_history * 2:
             self.conversation_history = self.conversation_history[-self.max_history * 2:]
+        
+        # Print performance summary
+        self.performance_metrics.print_summary()
         
         return answer

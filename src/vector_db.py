@@ -3,7 +3,10 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 from typing import List, Dict
 import os
+import time
 import pickle
+from performance_metrics import PerformanceMetrics
+from publication_chunker import PublicationChunker
 
 class VectorDB:
     def __init__(self, db_path: str = "vector_db.faiss"):
@@ -12,7 +15,9 @@ class VectorDB:
         self.model = SentenceTransformer("nomic-ai/nomic-embed-text-v2-moe", trust_remote_code=True)
         self.index = None
         self.metadata = []
+        self.performance_metrics = PerformanceMetrics()
         self._load_db()
+        self.chunker = PublicationChunker()
         
     def _load_db(self):
         """Load existing FAISS index and metadata or create new ones"""
@@ -35,7 +40,22 @@ class VectorDB:
     def generate_embeddings(self, chunks: List[Dict]) -> np.ndarray:
         """Generate embeddings for text chunks using Nomic model"""
         texts = [chunk['text'] for chunk in chunks]
-        return self.model.encode(texts)
+        
+        # Start tracking performance
+        self.performance_metrics.start_tracking()
+  
+        # Generate embeddings
+        embeddings = self.model.encode(texts)
+        processing_time = time.time() - self.performance_metrics.metrics["start_time"]
+
+        total_text = " ".join(texts)
+        token_count = self.chunker.get_token_count(total_text)
+        # Add metrics
+        self.performance_metrics.add_chunk_metrics(token_count, processing_time)
+        self.performance_metrics.stop_tracking()
+        self.performance_metrics.print_summary()
+
+        return embeddings
     
     def add_to_db(self, chunks: List[Dict]):
         """Add chunks with their embeddings to the database"""
