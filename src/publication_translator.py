@@ -202,15 +202,8 @@ class PublicationTranslator:
                 os.remove(translated_docx)
             if os.path.exists(output_pdf):
                 os.remove(output_pdf)
-            
-            # Read the translated PDF content for return value compatibility
-            pdf_document = fitz.open(output_pdf)
-            content = []
-            for page in pdf_document:
-                content.append(page.get_text())
-            pdf_document.close()
-            
-            return "\n\n---\n\n".join(content)
+
+            return translated_content
             
         except Exception as e:
             print(f"Error translating PDF: {str(e)}")

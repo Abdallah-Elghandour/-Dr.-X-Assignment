@@ -77,7 +77,7 @@ class PublicationSummarizer:
 
     def _get_extractive_prompt(self, text: str) -> str:
         return f"""
-        You are an Extractive Summarizer. Read the text below and select the most important sentences that summarize the main points. Copy the sentences exactly as they appear.
+        You are an Extractive Summarizer. select the most important sentences that summarize the main points. Copy the sentences exactly as they appear. DO NOT add extra content.
         
         TEXT:
         {text}
@@ -87,7 +87,7 @@ class PublicationSummarizer:
 
     def _get_abstractive_prompt(self, text: str) -> str:
         return f"""
-        You are an Abstractive Summarizer. Read the text below and summarize the following text in your own words. Focus on the main ideas. Do not copy the original sentences. Make it short, clear, and accurate.
+        You are an Abstractive Summarizer. summarize the following text in your own words. Do not copy the original sentences. DO NOT add extra content.
 
         TEXT:
         {text}
@@ -98,7 +98,7 @@ class PublicationSummarizer:
     def _get_hybrid_prompt(self, text: str) -> str:
         return f"""
             You are a summarization expert skilled in both extractive and abstractive techniques.
-            The summary should be clear, concise, and capture all major points without losing the original meaning.
+            The summary should be clear, concise, and capture all major points without losing the original meaning. DO NOT add extra content.
 
 
             Text:

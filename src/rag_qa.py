@@ -11,7 +11,7 @@ import time
 class RAGQA:
     def __init__(self, vector_db: VectorDB):
         """
-        Initialize RAG Q&A system with quantized Llama 3
+        Initialize RAG Q&A system with quantized Llama 3.1
         :param vector_db: VectorDB instance
         """
         self.vector_db = vector_db
@@ -41,7 +41,7 @@ class RAGQA:
         return [self.vector_db.metadata[i] for i in indices[0]]
     
     def answer_question(self, question: str) -> str:
-        """Generate answer using quantized Llama 3"""
+        """Generate answer using quantized Llama 3.1"""
         relevant_chunks = self._get_relevant_chunks(question)
         
         if not relevant_chunks:

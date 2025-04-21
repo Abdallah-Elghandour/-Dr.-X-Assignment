@@ -102,11 +102,15 @@ class LLMManager:
         """
         input_ids = self.tokenizer.apply_chat_template(
             messages,
-            return_tensors="pt"
+            return_tensors="pt",
+            padding=True
         ).to(self.model.device)
+        
+        attention_mask = torch.ones_like(input_ids)
         
         outputs = self.model.generate(
             input_ids,
+            attention_mask=attention_mask,  
             max_new_tokens=max_new_tokens,
             temperature=temperature,
             top_p=top_p,

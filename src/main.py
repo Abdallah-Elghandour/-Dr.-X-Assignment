@@ -42,7 +42,7 @@ def main():
         print("2. Document Translation")
         print("3. Document Summarization")
         print("4. Exit Program")
-        choice = input("Enter your choice (1, 2, 3, or 4): ").strip()
+        choice = input("\nEnter your choice (1, 2, 3, or 4): ").strip()
 
         if choice == '4':
             print("Exiting program. Goodbye!")
