@@ -1,8 +1,8 @@
 import os
 import pandas as pd
 import docx
-import PyPDF2
 import csv
+import pdfplumber
 from typing import Dict, List, Union, Tuple
 from docx2pdf import convert
 
@@ -41,30 +41,53 @@ class DocumentReader:
         return result
     
     def _read_pdf(self, file_path: str) -> Dict[str, Union[str, List[str]]]:
-            """
-            Extract text from a PDF file.
+        """
+        Extract text from a PDF file, including tables using pdfplumber.
+        
+        Args:
+            file_path: Path to the PDF file
             
-            Args:
-                file_path: Path to the PDF file
+        Returns:
+            Dictionary with extracted Pages
+        """
+        pages = []
+        
+        # Use pdfplumber for text and table extraction
+        with pdfplumber.open(file_path) as pdf:
+            for page_num, page in enumerate(pdf.pages):
+                # Extract regular text
+                page_text = page.extract_text() or ""
                 
-            Returns:
-                Dictionary with extracted Pages
-            """
-            with open(file_path, 'rb') as file:
-                reader = PyPDF2.PdfReader(file)
-                pages = []
+                # Extract tables
+                tables = page.extract_tables()
                 
-                for page_num in range(len(reader.pages)):
-                    page = reader.pages[page_num]
-                    page_text = page.extract_text()
+                if tables:
+                    tables_text = []
+                    for table_num, table in enumerate(tables):
+                        # Process each table
+                        table_text = []
+                        for row in table:
+                            # Filter out None values and convert all cells to strings
+                            processed_row = [str(cell).strip() if cell is not None else "" for cell in row]
+                            # Only include rows that have at least one non-empty cell
+                            if any(cell for cell in processed_row):
+                                table_text.append(" | ".join(processed_row))
+                        
+                        if table_text:
+                            tables_text.append(f"TABLE {table_num + 1}:\n" + "\n".join(table_text))
                     
-                    # Add page number for reference
-                    if page_text:
-                        pages.append(f"{page_text}")
-
-                return {
-                    'pages': pages,
-                }
+                    # Add tables to the page text
+                    if tables_text:
+                        page_text += f"\n\nTABLES EXTRACTED FROM PAGE {page_num + 1}:\n" + "\n\n".join(tables_text)
+                
+                pages.append(page_text)
+        
+        for page in pages:
+            print(page)
+            print("-"*50)
+        return {
+            'pages': pages
+        }
 
     def _read_docx(self, file_path: str) -> Dict[str, Union[str, List[str]]]:
         """
@@ -85,7 +108,6 @@ class DocumentReader:
 
         try:
             pdf = self._read_pdf(pdf_path)
-
             return {
                 'pages': pdf['pages']
             }
@@ -93,8 +115,6 @@ class DocumentReader:
             # Clean up
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
-
-
 
     def _read_tabular(self, file_path: str) -> Dict[str, Union[str, List[str]]]:
         """
@@ -131,8 +151,6 @@ class DocumentReader:
                 # If no pages were created, create at least one
                 if not pages:
                     pages = ["No data found"]
-                
-                text = "\n\n".join(pages)
         else:
             # Read Excel files
             try:
@@ -157,9 +175,9 @@ class DocumentReader:
                 # If no pages were created, create at least one
                 if not pages:
                     pages = ["No data found"]
-                text = "\n\n".join(pages)
             except Exception as e:
                 print(f"Excel reading error: {str(e)}")
+                pages = ["Error reading Excel file"]
         
         return {
             'pages': pages

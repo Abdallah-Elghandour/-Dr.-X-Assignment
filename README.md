@@ -1,6 +1,6 @@
 # Overview
 
-The AI Technical assignment project to demonstrate various document processing functionalities using AI models. The project includes capabilities for document reading, translation, summarization, and question-answering based on the content of publications. It leverages advanced NLP techniques and models to provide efficient and accurate results.
+The AI Technical assessment project to demonstrate various document processing functionalities using AI models. The project includes capabilities for document reading, translation, summarization, and question-answering based on the content of publications. It leverages advanced NLP techniques and models to provide efficient and accurate results.
 
 # Features
 
@@ -36,10 +36,11 @@ The project implements a comprehensive document processing pipeline with the fol
 
 - Documents are read using format-specific parsers:
   - **PDFs**
-  - **DOCX files**
+  - **DOCX**
   - **Tabular data**
 - DOCX files are converted to PDFs to handle pages numbers.
-- Text is extracted and chunked into manageable segments for processing.
+- Text is extracted from tables.
+- Documents are chunked into manageable segments for processing.
 
 ## 2. Vector Database
 
@@ -47,14 +48,20 @@ The project implements a comprehensive document processing pipeline with the fol
 - Embeddings are stored in a **FAISS** vector database for efficient similarity search.
 - **Retrieval-Augmented Generation (RAG)** is used to provide context-aware answers.
 
-## 3. Translation System
+## 3. Question & Answer
+
+- User queries are embedded using the same embedding model.
+- Similar documents are retrieved from the vector database.
+- Relevant documents are used to generate answers using the **Llama 3.1 8b**.
+
+## 4. Translation
 
 - Documents are translated as its original structure and format for (PDF and DOCX).
-- Translator is using facebook/nllb-200-distilled-600M model.
+- Translator is using `facebook/nllb-200-distilled-600M model`.
 - Supports high-quality translation for English and Arabic.
 
 
-## 4. Summarization Techniques
+## 5. Summarization
 
 - Documents are chunked to manage token limits.
 - Each chunk is summarized using the **Llama 3.1 8b** model.
