@@ -49,8 +49,9 @@ The project implements a comprehensive document processing pipeline with the fol
 
 ## 3. Translation System
 
-- Documents are chunked to manage token limits.
-- Each chunk is translated using the **Llama 3.1 8b** model.
+- Documents are translated as its original structure and format for (PDF and DOCX).
+- Translator is using facebook/nllb-200-distilled-600M model.
+- Supports high-quality translation for English and Arabic.
 
 
 ## 4. Summarization Techniques
@@ -67,6 +68,15 @@ The project implements a comprehensive document processing pipeline with the fol
 - **Source**: Hugging Face `meta-llama/Llama-3.1-8B-Instruct`  
 - **Quantization**: 4-bit quantization using `bitsandbytes` to reduce memory requirements  
 - **Implementation**: Loaded using Hugging Face Transformers with inference optimizations
+
+## Translation Model
+
+- **Model**: NLLB-200 Distilled 
+- **Source**: Hugging Face `facebook/nllb-200-distilled-600M`  
+- **Purpose**: Provides multilingual translation, including English and Arabic
+- **Implementation**: Loaded using Hugging Face Transformers
+
+
 
 ## Embedding Model
 
@@ -85,8 +95,7 @@ The project implements a comprehensive document processing pipeline with the fol
 
 ## 2. Translation Quality
 
-- Llama 3.1 provides a good translations for English and Arabic.
-- **Temperature setting** of `0.3` provides the best balance between accuracy and fluency.
+- `facebook/nllb-200-distilled-600M` provides reliable translations for English and Arabic.
 
 ## 3. Summarization Effectiveness
 

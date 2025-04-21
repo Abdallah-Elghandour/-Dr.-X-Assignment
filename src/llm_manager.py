@@ -1,5 +1,5 @@
 import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoModelForSeq2SeqLM, BitsAndBytesConfig
 from typing import List, Dict, Optional, Union
 
 class LLMManager:
@@ -8,14 +8,16 @@ class LLMManager:
     Handles model loading, tokenization, and generation with consistent settings.
     """
     
-    def __init__(self, model_name: str = "meta-llama/Llama-3.1-8B-Instruct"):
+    def __init__(self, model_name: str = "meta-llama/Llama-3.1-8B-Instruct", model_type: str = "causal"):
         """
-        Initialize the LLM Manager with a quantized Llama model
+        Initialize the LLM Manager with a quantized model
         
         Args:
             model_name: Hugging Face model name/path
+            model_type: Type of model - "causal" for text generation or "seq2seq" for translation
         """
         self.model_name = model_name
+        self.model_type = model_type
         
         # Check if GPU is available
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -35,14 +37,24 @@ class LLMManager:
         # Set pad_token_id to eos_token_id if not set
         if self.tokenizer.pad_token_id is None:
             self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
-            
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_name,
-            device_map={"": 0},  
-            quantization_config=self.quantization_config,
-            low_cpu_mem_usage=True,
-            pad_token_id=self.tokenizer.pad_token_id
-        )
+        
+        # Load the appropriate model type
+        if model_type == "causal":
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_name,
+                device_map={"": 0},  
+                quantization_config=self.quantization_config,
+                low_cpu_mem_usage=True,
+                pad_token_id=self.tokenizer.pad_token_id
+            )
+        elif model_type == "seq2seq":
+            self.model = AutoModelForSeq2SeqLM.from_pretrained(
+                model_name,
+                device_map={"": 0},
+                torch_dtype=torch.float16
+            )
+        else:
+            raise ValueError(f"Unsupported model type: {model_type}")
 
     def generate_response(self, 
                           prompt: str, 
@@ -103,3 +115,36 @@ class LLMManager:
         )
         
         return self.tokenizer.decode(outputs[0][input_ids.shape[1]:], skip_special_tokens=True)
+        
+    def generate_translation(self, 
+                            text: str, 
+                            target_lang_code: str,
+                            max_length: int = 512) -> str:
+        """
+        Translate text to the target language using the NLLB model.
+        
+        Args:
+            text: Text to translate
+            target_lang_code: Target language code (e.g., 'fra_Latn', 'ara_Arab')
+            max_length: Maximum length of the generated translation
+            
+        Returns:
+            Translated text
+        """
+        if self.model_type != "seq2seq":
+            raise ValueError("Translation requires a seq2seq model like NLLB. Initialize with model_type='seq2seq'")
+            
+        # Tokenize the input text
+        inputs = self.tokenizer(text, return_tensors="pt").to(self.device)
+        
+        # Generate translation with forced BOS token for target language
+        translated_tokens = self.model.generate(
+            **inputs,
+            forced_bos_token_id=self.tokenizer.convert_tokens_to_ids(target_lang_code),
+            max_length=max_length,
+        )
+        
+        # Decode the translation
+        translated_text = self.tokenizer.batch_decode(translated_tokens, skip_special_tokens=True)[0]
+        
+        return translated_text

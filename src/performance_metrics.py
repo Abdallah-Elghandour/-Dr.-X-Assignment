@@ -65,7 +65,7 @@ class PerformanceMetrics:
         """
         Print a summary of the performance metrics.
         """
-        print(f"Performance metrics summary:")
+        print(f"\n\nPerformance metrics summary:")
         print(f"- Total tokens processed: {self.metrics['total_tokens']}")
         print(f"- Total processing time: {self.metrics['total_time']:.2f} seconds")
         print(f"- Tokens per second: {self.metrics['tokens_per_second']:.2f}")
