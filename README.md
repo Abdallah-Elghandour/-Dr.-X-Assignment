@@ -1,6 +1,6 @@
 # Overview
 
-The AI Technical assessment project to demonstrate various document processing functionalities using AI models. The project includes capabilities for document reading, translation, summarization, and question-answering based on the content of publications. It leverages advanced NLP techniques and models to provide efficient and accurate results.
+The AI Technical project to demonstrate various document processing functionalities using AI models. The project includes capabilities for document reading, translation, summarization, and question-answering based on the content of publications. It leverages advanced NLP techniques and models to provide efficient and accurate results.
 
 # Features
 
